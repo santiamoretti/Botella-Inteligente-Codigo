@@ -1,0 +1,188 @@
+#include "HX711.h"
+
+const int DOUT = A1;
+const int CLK = A0;
+const int LED_PIN = 2;
+const int BUTTON_PIN = 13;
+
+HX711 balanza;
+float taraAnterior = 0;
+float aguaConsumida = 0;
+float aguaConsumidaEnIntervalo = 0;
+bool botonPresionado = false;
+
+unsigned long tiempoInicial = 0;
+unsigned long ultimoTiempoDeChequeo = 0;
+const float objetivoPorIntervalo = 0.032; // en kg
+const unsigned long duracionIntervalo = 60000; // en milisegundos, equivalente a un minuto
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  balanza.begin(DOUT, CLK);
+  Serial.print("Lectura del valor del ADC:  ");
+  Serial.println(balanza.read());
+  Serial.println("No ponga ningún objeto sobre la balanza");
+  Serial.println("Destarando...");
+  Serial.println("...");
+  balanza.set_scale(439430.25); // Establecemos la escala
+  
+  Serial.println("Listo para pesar");
+}
+
+void loop() {
+  unsigned long tiempoActual = millis();
+
+  if (digitalRead(BUTTON_PIN) == HIGH) {
+    if (!botonPresionado) {
+      botonPresionado = true;
+      tiempoInicial = tiempoActual;
+      ultimoTiempoDeChequeo = tiempoActual;
+    }
+
+    float pesoBruto = balanza.get_units(20) - taraAnterior;
+    float peso = pesoBruto - (pesoBruto * 0.105);
+
+    if (peso < 0) {
+      aguaConsumida -= peso;
+      aguaConsumidaEnIntervalo -= peso;
+    }
+
+    balanza.tare(20);
+    taraAnterior = balanza.get_units(20);
+    digitalWrite(LED_PIN, HIGH);
+    delay(500);
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  if (botonPresionado && (tiempoActual - ultimoTiempoDeChequeo >= duracionIntervalo)) {
+    if (aguaConsumidaEnIntervalo < objetivoPorIntervalo) {
+      Serial.println("No cumpliste con el intervalo de ingesta de agua.");
+    }
+    aguaConsumidaEnIntervalo = 0; // Reiniciar agua consumida en intervalo
+    ultimoTiempoDeChequeo = tiempoActual; // Actualizar el último tiempo de chequeo
+  }
+
+  // Mostrar la información solo si el botón ha sido presionado
+  if (botonPresionado) {
+    Serial.print("Agua Consumida en Intervalo: ");
+    Serial.print(aguaConsumidaEnIntervalo, 3);
+    Serial.print(" kg | Agua Consumida Total: ");
+    Serial.print(aguaConsumida, 3);
+    Serial.println(" kg");
+  }
+
+  delay(500);
+}
+
+Codigo de prueba con LEDS:
+
+#include "HX711.h"
+
+const int DOUT = A1;
+const int CLK = A0;
+const int LED_PIN = 2;
+const int BUTTON_PIN = 13;
+
+HX711 balanza;
+float taraAnterior = 0;
+float aguaConsumida = 0;
+float aguaConsumidaEnIntervalo = 0;
+bool botonPresionado = false;
+
+unsigned long tiempoInicial = 0;
+unsigned long ultimoTiempoDeChequeo = 0;
+
+const float pesoEnKg = 70.0; 
+const float pesoEnLibras = pesoEnKg * 2.20462; 
+const float objetivoDiarioDeAgua = (pesoEnLibras / 2.0) / 35.195; 
+const float objetivoPorIntervalo = objetivoDiarioDeAgua / 30; 
+const unsigned long duracionIntervalo = 60000; 
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  balanza.begin(DOUT, CLK);
+  Serial.print("Lectura del valor del ADC:  ");
+  Serial.println(balanza.read());
+  Serial.println("No ponga ningún objeto sobre la balanza");
+  Serial.println("Destarando...");
+  Serial.println("...");
+  balanza.set_scale(439430.25); // Establecemos la escala
+  
+  Serial.println("Listo para pesar");
+
+  // Imprimir los valores de agua que el usuario debe cumplir
+  Serial.print("Objetivo de agua por intervalo de un minuto: ");
+  Serial.print(objetivoPorIntervalo, 3);
+  Serial.println(" litros");
+  
+  Serial.print("Objetivo total de agua por dia: ");
+  Serial.print(objetivoDiarioDeAgua, 3);
+  Serial.println(" litros");
+}
+
+void loop() {
+  unsigned long tiempoActual = millis();
+
+  if (digitalRead(BUTTON_PIN) == HIGH) {
+    if (!botonPresionado) {
+      botonPresionado = true;
+      tiempoInicial = tiempoActual;
+      ultimoTiempoDeChequeo = tiempoActual;
+    }
+
+    float pesoBruto = balanza.get_units(20) - taraAnterior;
+    float peso = pesoBruto - (pesoBruto * 0.105);
+
+    if (peso < 0) {
+      aguaConsumida -= peso;
+      aguaConsumidaEnIntervalo -= peso;
+    }
+
+    balanza.tare(20);
+    taraAnterior = balanza.get_units(20);
+  }
+
+  if (botonPresionado && (tiempoActual - ultimoTiempoDeChequeo >= duracionIntervalo)) {
+    if (aguaConsumidaEnIntervalo < objetivoPorIntervalo) {
+      // Triple parpadeo del LED
+      for (int i = 0; i < 3; i++) {
+        digitalWrite(LED_PIN, HIGH);
+        delay(200);
+        digitalWrite(LED_PIN, LOW);
+        delay(200);
+      }
+    }
+    aguaConsumidaEnIntervalo = 0; // Reiniciar agua consumida en intervalo
+    ultimoTiempoDeChequeo = tiempoActual; // Actualizar el último tiempo de chequeo
+  }
+
+  // Mostrar la información solo si el botón ha sido presionado
+ if (botonPresionado) {
+    Serial.print("Agua Consumida en Intervalo: ");
+    Serial.print(aguaConsumidaEnIntervalo, 3);
+    Serial.print(" litros | Agua Consumida Total: ");
+    Serial.print(aguaConsumida, 3);
+    Serial.println(" litros");
+
+    // Verificar si se ha llegado al consumo diario de agua y resetear
+    if (aguaConsumida >= objetivoDiarioDeAgua) {
+      // Parpadeo de 10 veces del LED
+      for (int i = 0; i < 10; i++) {
+        digitalWrite(LED_PIN, HIGH);
+        delay(100);
+        digitalWrite(LED_PIN, LOW);
+        delay(100);
+      }
+      aguaConsumida = 0;
+    }
+  }
+
+  delay(500);
+}
+
